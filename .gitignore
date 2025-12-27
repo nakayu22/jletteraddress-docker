@@ -1,0 +1,13 @@
+# LaTeX generated files
+*.aux
+*.log
+*.out
+*.pdf
+*.dvi
+*.xdv
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Copied from Docker container
+jletteraddress.cls
