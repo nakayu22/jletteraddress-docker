@@ -111,6 +111,20 @@
   \@renmei@displaythreewithspace{#1}{#2}{#3}{#4}{#5}{#6}{#7}%
 }
 
+%% Define \renmeithreewithspace2 for 3 names when third name has no surname
+%% Usage: \renmeithreewithspace2{surname2}{given_name2}{honorific2}{given_name3}{honorific3}{surname1}{given_name1}{honorific1}
+%% Third name (left) has no surname, uses second name's surname
+\long\def\renmeithreewithspace2#1#2#3#4#5#6#7#8{%
+  \@renmei@displaythreewithspace2{#1}{#2}{#3}{#4}{#5}{#6}{#7}{#8}%
+}
+
+%% Define \renmeithreewithspaceboth for 3 names when both second and third names have no surname
+%% Usage: \renmeithreewithspaceboth{surname1}{given_name2}{honorific2}{given_name3}{honorific3}{given_name1}{honorific1}
+%% Both second and third names (left and middle) have no surname, use first name's surname
+\long\def\renmeithreewithspaceboth#1#2#3#4#5#6#7{%
+  \@renmei@displaythreewithspaceboth{#1}{#2}{#3}{#4}{#5}{#6}{#7}%
+}
+
 %% Display single name with vertical alignment
 %% All names should have the same height for proper alignment
 %% Name is displayed first, then honorific below it
@@ -430,6 +444,159 @@
   }%
 }
 
+%% Display three names with space for third name (when third name has no surname)
+%% Left name (third) has no surname, middle and right names have surname
+%% #1: surname from second name (middle)
+%% #2: second name given name (displayed in middle)
+%% #3: second honorific
+%% #4: third name (given name only, displayed on left)
+%% #5: third honorific
+%% #6: first name surname (displayed on right)
+%% #7: first name given name (displayed on right)
+%% #8: first honorific
+\def\@renmei@displaythreewithspace2#1#2#3#4#5#6#7#8{%
+  % Measure height of name part (given name only, without honorific) for left column
+  \setbox\@tempboxa=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #4%
+    }%
+  }%
+  % Measure height of name part (surname + given name, without honorific) for middle column
+  \setbox\@tempboxb=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #1%
+      \hskip1zw
+      #2%
+    }%
+  }%
+  % Measure height of name part (surname + given name, without honorific) for right column
+  \setbox\@tempboxc=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #6%
+      \hskip1zw
+      #7%
+    }%
+  }%
+  % Measure the surname width (which becomes height in vertical writing) for left column spacing
+  \setbox\@renmei@tempbox=\hbox{\fontsize{27pt}{0pt}\selectfont #1}%
+  % Display all columns
+  % Use wider parbox to prevent name from wrapping to multiple columns
+  \hbox{%
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      % Measure the surname width (which becomes height in vertical writing)
+      \setbox\@tempboxd=\hbox{\fontsize{27pt}{0pt}\selectfont #1}%
+      % Add space matching the surname width plus the gap between surname and given name (1zw)
+      \hskip\wd\@tempboxd
+      \hskip1zw
+      % Display the given name
+      #4%
+      \hskip1zw
+      #5%
+    }%
+    \hskip1.5truemm
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      #1%
+      \hskip1zw
+      #2%
+      \hskip1zw
+      #3%
+    }%
+    \hskip1.5truemm
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      #6%
+      \hskip1zw
+      #7%
+      \hskip1zw
+      #8%
+    }%
+  }%
+}
+
+%% Display three names with space for both second and third names (when both have no surname)
+%% Left name (third) and middle name (second) have no surname, right name has surname
+%% #1: surname from first name (right)
+%% #2: second name (given name only, displayed in middle)
+%% #3: second honorific
+%% #4: third name (given name only, displayed on left)
+%% #5: third honorific
+%% #6: first name given name (displayed on right)
+%% #7: first honorific
+\def\@renmei@displaythreewithspaceboth#1#2#3#4#5#6#7{%
+  % Measure height of name part (given name only, without honorific) for left column
+  \setbox\@tempboxa=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #4%
+    }%
+  }%
+  % Measure height of name part (given name only, without honorific) for middle column
+  \setbox\@tempboxb=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #2%
+    }%
+  }%
+  % Measure height of name part (surname + given name, without honorific) for right column
+  \setbox\@tempboxc=\hbox{%
+    \parbox<t>[t]{10zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      #1%
+      \hskip1zw
+      #6%
+    }%
+  }%
+  % Display all columns
+  % Use wider parbox to prevent name from wrapping to multiple columns
+  \hbox{%
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      % Measure the surname width (which becomes height in vertical writing)
+      \setbox\@tempboxd=\hbox{\fontsize{27pt}{0pt}\selectfont #1}%
+      % Add space matching the surname width plus the gap between surname and given name (1zw)
+      \hskip\wd\@tempboxd
+      \hskip1zw
+      % Display the given name
+      #4%
+      \hskip1zw
+      #5%
+    }%
+    \hskip1.5truemm
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      % Measure the surname width (which becomes height in vertical writing)
+      \setbox\@tempboxd=\hbox{\fontsize{27pt}{0pt}\selectfont #1}%
+      % Add space matching the surname width plus the gap between surname and given name (1zw)
+      \hskip\wd\@tempboxd
+      \hskip1zw
+      % Display the given name
+      #2%
+      \hskip1zw
+      #3%
+    }%
+    \hskip1.5truemm
+    \parbox<t>[t]{30zw}{%
+      \fontsize{27pt}{0pt}\selectfont
+      \noindent
+      #1%
+      \hskip1zw
+      #6%
+      \hskip1zw
+      #7%
+    }%
+  }%
+}
+
 %% Display four names
 %% All columns should be aligned at the top (name part)
 %% #1: surname (shared by all), #2: given_name1, #3: honorific1
@@ -630,23 +797,33 @@
     % Check if sender name is renmei command by checking if it starts with \renmei
     % We check if the first token of @sendernamecmd is a renmei command
     \def\sender@isrenmei{0}%
-    \begingroup
-      % Extract the first token of @sendernamecmd and check if it's a renmei command
-      \def\sender@checkrenmei##1##2\@nil{%
-        \def\sender@firsttoken{##1}%
-        \def\sender@renmeitwo{\renmeitwo}%
-        \def\sender@renmeitwowithspace{\renmeitwowithspace}%
-        \def\sender@renmeithree{\renmeithree}%
-        \def\sender@renmeithreewithspace{\renmeithreewithspace}%
-        \def\sender@renmeifour{\renmeifour}%
-        \ifx\sender@firsttoken\sender@renmeitwo\gdef\sender@isrenmei{1}\fi
-        \ifx\sender@firsttoken\sender@renmeitwowithspace\gdef\sender@isrenmei{1}\fi
-        \ifx\sender@firsttoken\sender@renmeithree\gdef\sender@isrenmei{1}\fi
-        \ifx\sender@firsttoken\sender@renmeithreewithspace\gdef\sender@isrenmei{1}\fi
-        \ifx\sender@firsttoken\sender@renmeifour\gdef\sender@isrenmei{1}\fi
-      }%
-      \expandafter\sender@checkrenmei\@sendernamecmd\@nil
-    \endgroup
+    % Check if @sendernamecmd is empty first
+    \def\sender@empty{}%
+    \ifx\@sendernamecmd\sender@empty
+      % Empty sender name - skip renmei check
+    \else
+      \begingroup
+        % Extract the first token of @sendernamecmd and check if it's a renmei command
+        \def\sender@checkrenmei##1##2\@nil{%
+          \def\sender@firsttoken{##1}%
+          \def\sender@renmeitwo{\renmeitwo}%
+          \def\sender@renmeitwowithspace{\renmeitwowithspace}%
+          \def\sender@renmeithree{\renmeithree}%
+          \def\sender@renmeithreewithspace{\renmeithreewithspace}%
+          \def\sender@renmeithreewithspace2{\renmeithreewithspace2}%
+          \def\sender@renmeithreewithspaceboth{\renmeithreewithspaceboth}%
+          \def\sender@renmeifour{\renmeifour}%
+          \ifx\sender@firsttoken\sender@renmeitwo\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeitwowithspace\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeithree\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeithreewithspace\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeithreewithspace2\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeithreewithspaceboth\gdef\sender@isrenmei{1}\fi
+          \ifx\sender@firsttoken\sender@renmeifour\gdef\sender@isrenmei{1}\fi
+        }%
+        \expandafter\sender@checkrenmei\@sendernamecmd\@nil
+      \endgroup
+    \fi
     \ifnum\sender@isrenmei=1
       % Renmei case for sender - process similar to recipient but scaled to 15pt
       % Store the command for later use

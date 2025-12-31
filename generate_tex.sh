@@ -48,75 +48,64 @@ fi
 # Read sender information from sender.txt or use defaults
 read_sender_info() {
     if [ -f "$SENDER_FILE" ]; then
-        # Read lines, skipping comments (lines starting with #) and empty lines
-        # Find first non-comment, non-empty line for name
-        line_num=1
-        while IFS= read -r line || [ -n "$line" ]; do
-            # Trim whitespace
-            line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            # Skip empty lines and comments
-            if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
-                line_num=$((line_num + 1))
-                continue
-            fi
-            sendername="$line"
-            break
-        done < "$SENDER_FILE"
+        # Read lines by line number, skipping comments (lines starting with #)
+        # Line 1: name
+        # Line 2: address1
+        # Line 3: address2 (can be empty)
+        # Line 4: postcode
+        data_line_num=0
+        sendername=""
+        senderaddressa=""
+        senderaddressb=""
+        senderpostcode=""
         
-        # Find second non-comment, non-empty line for address1
-        line_num=1
-        found_first=false
         while IFS= read -r line || [ -n "$line" ]; do
             # Trim whitespace
-            line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            # Skip empty lines and comments
-            if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
-                line_num=$((line_num + 1))
+            trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # Skip comments
+            if [ "${trimmed_line#\#}" != "$trimmed_line" ]; then
                 continue
             fi
-            if [ "$found_first" = false ]; then
-                found_first=true
-                line_num=$((line_num + 1))
-                continue
-            fi
-            senderaddressa="$line"
-            break
-        done < "$SENDER_FILE"
-        
-        # Find third non-comment, non-empty line for address2
-        line_num=1
-        found_count=0
-        while IFS= read -r line || [ -n "$line" ]; do
-            # Trim whitespace
-            line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            # Skip empty lines and comments
-            if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
-                line_num=$((line_num + 1))
-                continue
-            fi
-            found_count=$((found_count + 1))
-            if [ $found_count -eq 3 ]; then
-                senderaddressb="$line"
-                break
-            fi
-        done < "$SENDER_FILE"
-        
-        # Find fourth non-comment, non-empty line for postcode
-        line_num=1
-        found_count=0
-        while IFS= read -r line || [ -n "$line" ]; do
-            # Trim whitespace
-            line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            # Skip empty lines and comments
-            if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
-                line_num=$((line_num + 1))
-                continue
-            fi
-            found_count=$((found_count + 1))
-            if [ $found_count -eq 4 ]; then
-                senderpostcode="$line"
-                break
-            fi
+            
+            # Increment data line number for all non-comment lines
+            data_line_num=$((data_line_num + 1))
+            
+            # Assign based on data line number (1-indexed)
+            case $data_line_num in
+                1)
+                    # Name - must not be empty
+                    if [ -z "$trimmed_line" ]; then
+                        # Empty name line, skip it
+                        data_line_num=$((data_line_num - 1))
+                        continue
+                    fi
+                    sendername="$trimmed_line"
+                    ;;
+                2)
+                    # Address1 - must not be empty
+                    if [ -z "$trimmed_line" ]; then
+                        # Empty address1 line, skip it
+                        data_line_num=$((data_line_num - 1))
+                        continue
+                    fi
+                    senderaddressa="$trimmed_line"
+                    ;;
+                3)
+                    # Address2 - can be empty, so we always set it (even if empty)
+                    # This allows empty address2 without skipping to postcode
+                    senderaddressb="$trimmed_line"
+                    ;;
+                4)
+                    # Postcode - must not be empty
+                    if [ -z "$trimmed_line" ]; then
+                        # Empty postcode line, skip it
+                        data_line_num=$((data_line_num - 1))
+                        continue
+                    fi
+                    senderpostcode="$trimmed_line"
+                    ;;
+            esac
         done < "$SENDER_FILE"
     fi
 }
@@ -209,35 +198,64 @@ process_sender_renmei() {
             surname_escaped=$(escape_latex "$surname")
             given_name_escaped=$(escape_latex "$given_name")
             
-            # Store in arrays
-            name_items_array+=("$name_item_escaped")
-            honorific_items_array+=("$honorific_item_escaped")
-            has_surname_array+=("$has_surname")
-            surname_array+=("$surname_escaped")
-            given_name_array+=("$given_name_escaped")
-            name_count=$((name_count + 1))
-        done
-        
-        # Second pass: build renmei command
-        # Check if we need to use withspace commands
-        if [ "$has_name_without_surname" = true ] && [ -n "$first_surname" ]; then
-            # Use withspace commands when second name or later has no surname
-            if [ $name_count -eq 2 ]; then
-                # Find which name has no surname (in original order)
-                if [ "${has_surname_array[1]}" = false ]; then
-                    # Second name (idx 1) has no surname
-                    # For sender, display second name on the left, first name on the right
-                    renmei_cmd="\\renmeitwowithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                # Store in arrays
+                name_items_array+=("$name_item_escaped")
+                honorific_items_array+=("$honorific_item_escaped")
+                has_surname_array+=("$has_surname")
+                surname_array+=("$surname_escaped")
+                given_name_array+=("$given_name_escaped")
+                name_count=$((name_count + 1))
+            done
+            
+            # Calculate effective surname for each name (actually used surname)
+            # First name uses its own surname (or empty if no surname)
+            # Subsequent names use their own surname if they have one, otherwise inherit from previous name's effective surname
+            declare -a effective_surname_array=()
+            for idx in "${!name_items_array[@]}"; do
+                if [ $idx -eq 0 ]; then
+                    # First name: use its own surname
+                    effective_surname_array+=("${surname_array[$idx]}")
                 else
-                    # First name has no surname (shouldn't happen, but handle it)
-                    renmei_cmd="\\renmeitwo{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}"
+                    # Subsequent names: use own surname if available, otherwise inherit from previous
+                    if [ "${has_surname_array[$idx]}" = true ]; then
+                        effective_surname_array+=("${surname_array[$idx]}")
+                    else
+                        # Inherit from previous name's effective surname
+                        effective_surname_array+=("${effective_surname_array[$((idx-1))]}")
+                    fi
                 fi
-            elif [ $name_count -eq 3 ]; then
+            done
+            
+            # Second pass: build renmei command
+            # Check if we need to use withspace commands
+            if [ "$has_name_without_surname" = true ] && [ -n "$first_surname" ]; then
+                # Use withspace commands when second name or later has no surname
+                if [ $name_count -eq 2 ]; then
+                    # Find which name has no surname (in original order)
+                    if [ "${has_surname_array[1]}" = false ]; then
+                        # Second name (idx 1) has no surname
+                        # For sender, display second name on the left, first name on the right
+                        renmei_cmd="\\renmeitwowithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                    else
+                        # First name has no surname (shouldn't happen, but handle it)
+                        renmei_cmd="\\renmeitwo{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}"
+                    fi
+                elif [ $name_count -eq 3 ]; then
                 # Check which name has no surname
-                if [ "${has_surname_array[1]}" = false ]; then
+                if [ "${has_surname_array[1]}" = false ] && [ "${has_surname_array[2]}" = false ]; then
+                    # Both second and third names (idx 1 and 2) have no surname
+                    # For sender, display third name on the left, second name in the middle, first name on the right
+                    # Both use first surname
+                    renmei_cmd="\\renmeithreewithspaceboth{${first_surname}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                elif [ "${has_surname_array[1]}" = false ]; then
                     # Second name (idx 1) has no surname
                     # For sender, display second name on the left, first name in the middle, third name on the right
                     renmei_cmd="\\renmeithreewithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${given_name_array[2]}}{${honorific_items_array[2]}}"
+                elif [ "${has_surname_array[2]}" = false ]; then
+                    # Third name (idx 2) has no surname
+                    # For sender, display third name on the left, second name in the middle, first name on the right
+                    # Use second name's effective surname (which is its own surname)
+                    renmei_cmd="\\renmeithreewithspace2{${effective_surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
                 else
                     # Use regular command
                     renmei_cmd="\\renmeithree{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${surname_array[2]}}{${given_name_array[2]}}{${honorific_items_array[2]}}"
@@ -245,8 +263,9 @@ process_sender_renmei() {
             else
                 # For 4 or more names, use regular command
                 if [ $name_count -eq 4 ]; then
-                    # Use first surname for all names (assuming they share the same surname)
-                    first_surname_for_four="${surname_array[0]}"
+                    # Use effective surname from first name (which may be inherited by subsequent names)
+                    # This handles cases where some names don't have surnames
+                    first_surname_for_four="${effective_surname_array[0]}"
                     if [ -z "$first_surname_for_four" ]; then
                         first_surname_for_four=""
                     fi
@@ -427,6 +446,25 @@ EOF
                 name_count=$((name_count + 1))
             done
             
+            # Calculate effective surname for each name (actually used surname)
+            # First name uses its own surname (or empty if no surname)
+            # Subsequent names use their own surname if they have one, otherwise inherit from previous name's effective surname
+            declare -a effective_surname_array=()
+            for idx in "${!name_items_array[@]}"; do
+                if [ $idx -eq 0 ]; then
+                    # First name: use its own surname
+                    effective_surname_array+=("${surname_array[$idx]}")
+                else
+                    # Subsequent names: use own surname if available, otherwise inherit from previous
+                    if [ "${has_surname_array[$idx]}" = true ]; then
+                        effective_surname_array+=("${surname_array[$idx]}")
+                    else
+                        # Inherit from previous name's effective surname
+                        effective_surname_array+=("${effective_surname_array[$((idx-1))]}")
+                    fi
+                fi
+            done
+            
             # Second pass: build renmei_parts in reverse order
             # Check if we need to use withspace commands
             # Note: Arrays are in original CSV order (left to right)
@@ -445,31 +483,47 @@ EOF
                         renmei_cmd="\\renmeitwowithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
                     else
                         # First name has no surname (shouldn't happen, but handle it)
-                        renmei_cmd="\\renmeitwo{${name_items_array[1]}}{${honorific_items_array[1]}}{${name_items_array[0]}}{${honorific_items_array[0]}}"
+                        renmei_cmd="\\renmeitwo{${surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
                     fi
                     first_name="${name_items_array[1]}"
                 elif [ $name_count -eq 3 ]; then
                     # Check which name has no surname
-                    if [ "${has_surname_array[1]}" = false ]; then
+                    if [ "${has_surname_array[1]}" = false ] && [ "${has_surname_array[2]}" = false ]; then
+                        # Both second and third names (idx 1 and 2) have no surname in CSV
+                        # After reversal: idx 2 (left, no surname), idx 1 (middle, no surname), idx 0 (right, with surname)
+                        # Both use first surname
+                        renmei_cmd="\\renmeithreewithspaceboth{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                        first_name="${name_items_array[2]}"
+                    elif [ "${has_surname_array[1]}" = false ]; then
                         # Second name (idx 1) has no surname in CSV
                         # After reversal: idx 2 (right), idx 1 (middle, no surname), idx 0 (left)
-                        renmei_cmd="\\renmeithreewithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${name_items_array[2]}}{${honorific_items_array[2]}}"
+                        renmei_cmd="\\renmeithreewithspace{${first_surname}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}{${given_name_array[2]}}{${honorific_items_array[2]}}"
+                        first_name="${name_items_array[2]}"
+                    elif [ "${has_surname_array[2]}" = false ]; then
+                        # Third name (idx 2) has no surname in CSV
+                        # After reversal: idx 2 (left, no surname), idx 1 (middle), idx 0 (right)
+                        # Use second name's effective surname (which is its own surname)
+                        renmei_cmd="\\renmeithreewithspace2{${effective_surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                        first_name="${name_items_array[2]}"
                     else
                         # Use regular command
-                        renmei_cmd="\\renmeithree{${name_items_array[2]}}{${honorific_items_array[2]}}{${name_items_array[1]}}{${honorific_items_array[1]}}{${name_items_array[0]}}{${honorific_items_array[0]}}"
+                        renmei_cmd="\\renmeithree{${surname_array[2]}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${surname_array[1]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${surname_array[0]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
+                        first_name="${name_items_array[2]}"
                     fi
-                    first_name="${name_items_array[2]}"
                 else
                     # For 4 or more names, use regular command with separated surname, given name, and honorific
                     # For 4 names, due to LaTeX's 9-parameter limit, we use shared surname format
                     if [ $name_count -eq 4 ]; then
-                        # Use first surname for all names (assuming they share the same surname)
-                        first_surname_for_four="${surname_array[0]}"
+                        # Use effective surname from first name (which may be inherited by subsequent names)
+                        # This handles cases where some names don't have surnames
+                        first_surname_for_four="${effective_surname_array[0]}"
                         if [ -z "$first_surname_for_four" ]; then
                             # If first name has no surname, use empty
                             first_surname_for_four=""
                         fi
                         # Build command: surname, then name1, honorific1, name2, honorific2, name3, honorific3, name4, honorific4
+                        # Note: renmeifour uses shared surname, so all names will use the same surname
+                        # Names without surname will have space matching this surname
                         renmei_cmd="\\renmeifour{${first_surname_for_four}}{${given_name_array[3]}}{${honorific_items_array[3]}}{${given_name_array[2]}}{${honorific_items_array[2]}}{${given_name_array[1]}}{${honorific_items_array[1]}}{${given_name_array[0]}}{${honorific_items_array[0]}}"
                         first_name="${name_items_array[3]}"
                     else
