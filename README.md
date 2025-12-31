@@ -1,6 +1,6 @@
 # jletteraddress Docker環境
 
-Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jletteraddress)を使用してはがきの宛名面を作成する環境です。
+Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jletteraddress)をベースに連名機能を拡張したクラスファイルを使用してはがきの宛名面を作成する環境です。
 
 ## 必要な環境
 
@@ -18,12 +18,23 @@ Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jle
 ├── Makefile                 # ビルドコマンド
 ├── Dockerfile               # Dockerイメージ定義
 ├── docker-compose.yml       # Docker Compose設定
+├── jletteraddress.cls       # jletteraddressクラスファイル
 ├── atena.tex                # 生成されるLaTeXファイル（自動生成）
 ├── atena.pdf                # 生成されるPDFファイル（自動生成）
 └── README.md                # このファイル
 ```
 
 ## セットアップ
+
+### 初回セットアップ
+
+初回使用時は、Dockerイメージをビルドする必要があります：
+
+```bash
+make build
+```
+
+このコマンドは、Docker Composeを使用してLaTeX環境を含むDockerイメージを構築します。初回のみ実行すれば十分です（Dockerfileやdocker-compose.ymlを変更した場合を除く）。
 
 ### 方法1: CSVファイルで宛名を管理（推奨）
 
@@ -33,16 +44,31 @@ Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jle
 
    `data/sender.txt`ファイルを編集してください（1行目から順に）：
    ```
+   # 送り主情報（Sender Information）
+   # 1行目: 名前（連名の場合はセミコロン区切り）
+   #        例: 山田　太郎（単一名）
+   #        例: 山田　太郎;佐々木　花子（連名、別々の苗字）
+   #        例: 山田　太郎;花子（連名、同じ苗字、二人目は名前のみ）
+   # 2行目: 住所1
+   # 3行目: 住所2
+   # 4行目: 郵便番号（7桁、ハイフンなし）
    あなたの名前
    住所1
    住所2
    郵便番号
    ```
 
+   **連名の記述方法**:
+   - 単一名: `山田　太郎`
+   - 連名（2名、別々の苗字）: `山田　太郎;佐々木　花子`
+   - 連名（2名、同じ苗字、二人目に苗字なし）: `山田　太郎;花子`（二人目は名前のみ）
+   - 連名（3名、同じ苗字、二人目以降に苗字なし）: `山田　太郎;花子;一郎`（二人目以降は名前のみ）
+   - 連名（4名）: `山田　太郎;佐々木　花子;林　一郎;鈴木　一郎`
+
 2. **受取人情報の設定**
 
    `data/addresses.csv`ファイルを編集してください。CSV形式で以下の列を含みます：
-   - `name`: 受取人の名前
+   - `name`: 受取人の名前（連名の場合はセミコロン区切り、詳細は後述）
    - `honorific`: 敬称（様、御中など）
    - `postcode`: 郵便番号
    - `address1`: 住所1
@@ -53,7 +79,15 @@ Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jle
    name,honorific,postcode,address1,address2
    佐藤 花子,様,1500001,東京都渋谷区神宮前1-1-1,佐藤アパート 201
    鈴木 一郎,様,4600001,愛知県名古屋市中区錦3-1-1,鈴木ハイツ 301
+   山田 太郎;佐々木 花子,様,5300001,大阪府大阪市北区梅田1-1-1,タワーマンション 1001
    ```
+
+   **受取人の連名の記述方法**:
+   - 単一名: `佐藤 花子`
+   - 連名（2名、別々の苗字）: `山田 太郎;佐々木 花子`
+   - 連名（2名、同じ苗字、二人目に苗字なし）: `山田 太郎;花子`（二人目は名前のみ）
+   - 連名（3名以上）: `山田 太郎;花子;一郎`（二人目以降は名前のみ、または`山田 太郎;佐々木 花子;林 一郎`のように全員に苗字を付けることも可能）
+   - 連名で個別の敬称を指定する場合: `鈴木 一郎:様;美咲:様`（コロンで区切って名前と敬称を指定）
 
 3. **LaTeXファイルの自動生成**
 
@@ -84,11 +118,17 @@ Docker上でLaTeXを実行し、[jletteraddress](https://github.com/ueokande/jle
 ### 基本的な使用方法
 
 ```bash
+# 初回のみ: Dockerイメージをビルド
+make build
+
 # CSVからLaTeXファイルを生成（手動実行する場合）
 make generate
 
 # PDFを生成（CSVから自動的にLaTeXファイルを生成してからPDFを作成）
 make pdf
+
+# 既存のatena.texからPDFを生成（LaTeXファイルを再生成せずにコンパイルのみ）
+make compile
 
 # 生成されたファイルをクリーンアップ
 make clean
@@ -136,6 +176,18 @@ PDFファイル（`atena.pdf`）が生成されます。このファイルには
 
 ## カスタマイズ
 
+### 送り主の連名
+
+送り主にも連名（複数名）を追加できます。`data/sender.txt`の1行目に、セミコロン（`;`）で区切って複数の名前を記述してください。
+
+**例**:
+- 単一名: `山田　太郎`
+- 連名（2名、別々の苗字）: `山田　太郎;佐々木　花子`
+- 連名（2名、同じ苗字、二人目に苗字なし）: `山田　太郎;花子`（二人目は名前のみ）
+- 連名（3名、同じ苗字、二人目以降に苗字なし）: `山田　太郎;花子;一郎`（二人目以降は名前のみ）
+
+**注意**: 二人目以降に苗字がない場合（同じ苗字を共有する場合）、一人目の名前の高さに合わせて表示されます。
+
 ### 複数の宛名を追加
 
 **CSV方式（推奨）**: `data/addresses.csv`ファイルに行を追加するだけです。ExcelやGoogleスプレッドシートで編集することもできます。
@@ -145,7 +197,10 @@ name,honorific,postcode,address1,address2
 名前1,様,郵便番号1,住所1-1,住所1-2
 名前2,様,郵便番号2,住所2-1,住所2-2
 名前3,様,郵便番号3,住所3-1,住所3-2
+山田 太郎;花子,様,郵便番号4,住所4-1,住所4-2
 ```
+
+連名を追加する場合は、`name`列にセミコロン（`;`）で区切って複数の名前を記述します。
 
 **直接編集方式**: `atena.tex`ファイル内で、`\addaddress`コマンドを複数回使用することで、複数の宛名を追加できます。
 
@@ -169,4 +224,4 @@ name,honorific,postcode,address1,address2
 
 このプロジェクトはMITライセンスの下で公開されています。
 
-このプロジェクトは[jletteraddress](https://github.com/ueokande/jletteraddress)（MITライセンス）を使用しています。
+このプロジェクトは[jletteraddress](https://github.com/ueokande/jletteraddress)（MITライセンス）をベースに、連名（複数名の宛名）機能を拡張したクラスファイル（`jletteraddress.cls`）を含んでいます。元のjletteraddressの著作権表示（Copyright (c) 2014 Shin'ya Ueoka）は`jletteraddress.cls`ファイル内に保持されています。

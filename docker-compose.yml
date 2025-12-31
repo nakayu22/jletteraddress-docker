@@ -4,5 +4,4 @@ services:
     volumes:
       - .:/workdir
     working_dir: /workdir
-    command: bash -c "cp /opt/jletteraddress/jletteraddress.cls . && rm -f atena.aux atena.dvi atena.log atena.out atena.pdf atena.xdv && latexmk -latex=platex -pdfdvi -interaction=nonstopmode atena.tex"
 
